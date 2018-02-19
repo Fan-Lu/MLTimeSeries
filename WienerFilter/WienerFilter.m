@@ -2,7 +2,7 @@
 %Prepare Data
 % t = rand(10000, 1);
 % input = exp(-abs(t).^1.5); %Input signal
-noise = wgn(10000, 1, 5.0); %noise
+noise = wgn(10000, 1, 0.1); %noise
 % 
 % b = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1];
 % a = [1, -1];
@@ -23,7 +23,7 @@ y_n = output + noise;  %Output with noise
 % xlabel('Frequency (Hz)')
 % ylabel('Power/Frequency (dB/Hz)')
 
-M = 15; %Filter Order
+M = 5; %Filter Order
 window_size = 100;
 w = rand(M,1);
 %eta = 0.00001; %Learning rate
@@ -63,12 +63,12 @@ for batch = 1:(10000/window_size)
     MSE(batch) = (err' * err)/(trace(x_batch'*x_batch)*window_size);
     %batch
 end
-
+%mean(MSE)
 plot(w_save); hold on;
 grid on
-title('Weight track over different noise')
+title('Weight Track')
 xlabel('Window')
-ylabel('Weight')
+ylabel('MSE')
 % 
 % plot(WSNR); hold on;
 % plot(y_n); hold;
