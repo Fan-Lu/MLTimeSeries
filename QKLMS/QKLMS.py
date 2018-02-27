@@ -102,6 +102,8 @@ for i in range(1, len(xn)):
     for j in range(i):
         x_pre = X[j, :].reshape([M, 1])
         pred[i] += a[j] * np.exp(-h*(x_tmp-x_pre).T.dot((x_tmp-x_pre)))
+#    x_pre = X[0:i, :].reshape([M, (i)])
+    pred[i] = np.trace(np.exp(-h*(x_tmp-x_pre).T.dot((x_tmp-x_pre))))
     #pred[i] = cernel(x_tmp, i)
     #Compute the error
     e_tmp = yn[i-D] - pred[i]
@@ -155,7 +157,7 @@ for i in range(1, len(xn)):
     seat = get_postion(dis, dis_min)
     
     if (dis_min <= q_size):
-        qc[i, :] = qc[i-1, :]
+        qc[i, :] = qc[seat, :]
         qa[i] = eta3*e_tmp + qa[i-1]
         netsize[i] = netsize[i-1]
     else:
