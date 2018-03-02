@@ -9,6 +9,7 @@ Created on Mon Feb 26 12:49:22 2018
 #import needed libraries
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 #%%
 def loadCSVfile(path):
@@ -20,7 +21,7 @@ def loadCSVfile(path):
 SN = loadCSVfile("D:\MyGitHub\MLTimeSeries\SunpotPrediction\SN_m_tot_V2.0.csv")
 #D = SN.reshape(np.size(SN), 1)
 #plt.plot(D)
-
+SN = (SN-np.sum(SN))/np.sum(SN)
 M = 6  #Filter Order， Taken's Theory
 D = 10  #delay 10 or 20
 N_tr = 3000
@@ -48,6 +49,41 @@ def get_postion(array, dismin):
             return i
 
 #%%
+#######LMS######
+def LMS(x_tr, d_tr, x_te, d_te, lr_k, m):
+    w = np.zeros([m, 1])
+    w_track = np.zeros([np.size(x_tr, 0), m])
+    mse_tr = np.zeros(np.size(x_tr, 0))
+    mse_te = np.zeros(np.size(x_te, 0))
+    error_tr = 0
+    error_te = 0
+    pred_tr = np.zeros(np.size(x_tr, 0))
+    pred_te = np.zeros(np.size(x_te, 0))
+    
+    ####Training####
+    for i in range(np.size(x_tr, 0)):
+        x_tmp = x_tr[i, :].reshape([M, 1])
+        y_tmp = x_tmp.T.dot(w)
+        pred_tr[i] = y_tmp
+        e_tmp = d_tr[i] - y_tmp
+        error_tr += e_tmp**2
+        mse_tr[i] = error_tr/(i+1)
+        w_track[i, :] = w.reshape(m)
+        w = w + lr_k*x_tmp*e_tmp
+        
+        print('LMS Train Iter = ', i, 'MSE = ', mse_tr[i])
+
+    for i in range(np.size(x_te, 0)):
+        x_tmp = x_te[i, :].reshape([M, 1])
+        pred_te[i] = x_tmp.T.dot(w)
+        e_tmp = d_te[i] - pred_te[i]
+        error_te += e_tmp**2
+        mse_te[i] = error_te/(i+1)
+        
+        
+        print('LMS Test Inter = ', i, 'MSE = ', mse_te[i])
+    return mse_tr, mse_te, pred_tr, pred_te
+#%%
 ####QKLMS Trianed with MSE        
 def MSE(x_tr, x_te, lr_k, sigma, q_size):
     qpred_tr = np.zeros(np.size(x_tr, 0))
@@ -63,14 +99,14 @@ def MSE(x_tr, x_te, lr_k, sigma, q_size):
     mse_te = np.zeros(np.size(x_te, 0))
 
     #######Training#######
-    for i in range(1, np.size(x_tr, 0)):
+    for i in range(1, np.size(x_tr, 0)-D):
         x_tmp = x_tr[i, :].reshape([M, 1])
         #Compute the output
         for j in range(i):
             x_pre = qc[j, :].reshape([M, 1])
             qpred_tr[i] += qa[j] * np.exp(-(x_tmp-x_pre).T.dot((x_tmp-x_pre))*sigma)
         #compute the error
-        e_tmp = D_tr[i] - qpred_tr[i] 
+        e_tmp = D_tr[i+D] - qpred_tr[i] 
         #compute the distance between u(i) and c(i-1)
         dis = np.zeros([i, 1])
         for j in range(i):
@@ -81,7 +117,7 @@ def MSE(x_tr, x_te, lr_k, sigma, q_size):
         
         if (dis_min <= q_size):
             qc[i, :] = qc[seat, :]   #use old center
-            qa[i] = lr_k*e_tmp + qa[i-1]  
+            qa[i] = lr_k*e_tmp + qa[i]  
             netsize[i] = netsize[i-1]
         else:
             qc[i, :] = x_tr[i, :]   #update center
@@ -95,12 +131,12 @@ def MSE(x_tr, x_te, lr_k, sigma, q_size):
     ######End of trian#######
         
     #Testing
-    for i in range(np.size(x_te, 0)):
+    for i in range(np.size(x_te, 0)-D):
         x_tmp = x_te[i, :].reshape([M, 1])
-        for j in range(i+1):
+        for j in range(np.size(x_tr, 0)):
             x_pre = qc[j, :].reshape([M, 1])
             qpred_te[i] += qa[j] * np.exp(-(x_tmp-x_pre).T.dot((x_tmp-x_pre))*sigma)
-        e_tmp = D_te[i-D] - qpred_te[i]
+        e_tmp = D_te[i+D] - qpred_te[i]
         qe_te += e_tmp**2
         mse_te[i] = qe_te/(i+1)
         
@@ -151,7 +187,7 @@ def MCC(x_tr, x_te, lr_q, k, q_size):
     ###Start Trianing
     for i in range(1, np.size(x_te, 0)):
         x_tmp = x_te[i, :].reshape([M, 1])
-        for j in range(i):
+        for j in range(np.size(x_tr, 0)):
             x_pre = qc[j, :].reshape([M, 1])
             qpred_te[i] += lr_q*np.exp(-qe_tr[j]**2/(2*k**2))*qe_tr[j]*np.exp(-(x_tmp-x_pre).T.dot((x_tmp-x_pre))/(2*k**2))  
         e_tmp_te += (D_te[i] - qpred_te[i])**2
@@ -164,8 +200,11 @@ def MCC(x_tr, x_te, lr_q, k, q_size):
     
 #%%
 if __name__ == "__main__":
-    MSE_Tr, MSE_Te, NetSize, QPred_Tr,  QPred_Te = MSE(X_tr, X_te, 0.8, 0.0001, 0)
-    #MSE_Tr, QPred_Tr, MSE_Te, QPred_Te = MCC(X_tr, X_te, 0.8, 100000, 0)
+    #MSE_Tr, MSE_Te, NetSize, QPred_Tr,  QPred_Te = MSE(X_tr, X_te, 0.9, 0.0000001, 20)
+    #MSE_Tr, QPred_Tr, MSE_Te, QPred_Te = MCC(X_tr, X_te, 0.75, 100000, 25)
+    MSE_Tr, MSE_te, Pred_Tr, Pred_Te = LMS(X_tr, D_tr, X_te, D_te, 0.1, M )
 #%%
-#plt.plot(MSE)
-plt.plot(MSE_Tr)
+#plt.plot(QPred_Te)
+#plt.plot(D_te)
+plt.plot(MSE_Tr, 'r')
+#plt.plot(D_te, 'b')
